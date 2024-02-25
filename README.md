@@ -92,7 +92,7 @@ func main() {
 addr := cfg.Server.Address
 ```
 
-`YAMLConfig automatically validates the YAML configuration against your defined Go structs. It ensures all required fields are present and correctly typed, returning an error for any discrepancies.
+`YAMLConfig` automatically validates the YAML configuration against your defined Go structs. It ensures all required fields are present and correctly typed, returning an error for any discrepancies.
 
 By following these steps, you can leverage YAMLConfig to efficiently manage your application's configuration, focusing more on your core application logic and less on configuration management.
 
@@ -102,12 +102,13 @@ Run the test suite:
 
 ```shell
 make test
+make coverage
 ```
 
 Run linters:
 
 ```shell
-make lint # pass -j option to run them in parallel
+make lint
 ```
 
 Some linter violations can automatically be fixed:
