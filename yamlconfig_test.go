@@ -32,6 +32,12 @@ type TestConfigEmptyStruct struct {
 	} `yaml:"struct"`
 }
 
+type TestConfigOmitEmpty struct {
+	String string            `yaml:"string"`
+	Map    map[string]string `yaml:"map" yamlconfig:"omitempty"`
+	Slice  []string          `yaml:"slice" yamlconfig:"omitempty"`
+}
+
 func TestConfig(t *testing.T) {
 	t.Run("Load Config", func(t *testing.T) {
 		cfg := TestConfigStruct{}
@@ -138,6 +144,53 @@ func TestConfig(t *testing.T) {
 
 		loadConfigErr := yamlconfig.LoadConfig(tempConfigFile.Name(), &cfg)
 
+		require.Error(t, loadConfigErr)
+	})
+
+	t.Run("Load Config With OmitEmpty - All Fields Present", func(t *testing.T) {
+		cfg := TestConfigOmitEmpty{}
+		tempConfigFile, tempConfigFileErr := os.CreateTemp("", "omit_empty_config_all.yml")
+		require.NoError(t, tempConfigFileErr)
+		defer os.Remove(tempConfigFile.Name())
+
+		_, writeStringErr := tempConfigFile.WriteString("string: test\nmap:\n  foo: bar\nslice:\n  - item1\n  - item2\n")
+		require.NoError(t, writeStringErr)
+
+		loadConfigErr := yamlconfig.LoadConfig(tempConfigFile.Name(), &cfg)
+		require.NoError(t, loadConfigErr)
+
+		require.Equal(t, "test", cfg.String)
+		require.Equal(t, map[string]string{"foo": "bar"}, cfg.Map)
+		require.Equal(t, []string{"item1", "item2"}, cfg.Slice)
+	})
+
+	t.Run("Load Config With OmitEmpty - Optional Fields Missing", func(t *testing.T) {
+		cfg := TestConfigOmitEmpty{}
+		tempConfigFile, tempConfigFileErr := os.CreateTemp("", "omit_empty_config_missing.yml")
+		require.NoError(t, tempConfigFileErr)
+		defer os.Remove(tempConfigFile.Name())
+
+		_, writeStringErr := tempConfigFile.WriteString("string: test\n")
+		require.NoError(t, writeStringErr)
+
+		loadConfigErr := yamlconfig.LoadConfig(tempConfigFile.Name(), &cfg)
+		require.NoError(t, loadConfigErr)
+
+		require.Equal(t, "test", cfg.String)
+		require.Nil(t, cfg.Map)
+		require.Nil(t, cfg.Slice)
+	})
+
+	t.Run("Load Config With OmitEmpty - Missing Required Field", func(t *testing.T) {
+		cfg := TestConfigOmitEmpty{}
+		tempConfigFile, tempConfigFileErr := os.CreateTemp("", "omit_empty_config_missing_required.yml")
+		require.NoError(t, tempConfigFileErr)
+		defer os.Remove(tempConfigFile.Name())
+
+		_, writeStringErr := tempConfigFile.WriteString("map:\n  foo: bar\nslice:\n  - item1\n")
+		require.NoError(t, writeStringErr)
+
+		loadConfigErr := yamlconfig.LoadConfig(tempConfigFile.Name(), &cfg)
 		require.Error(t, loadConfigErr)
 	})
 }

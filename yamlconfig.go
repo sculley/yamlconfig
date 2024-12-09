@@ -65,22 +65,26 @@ func validateConfig(config interface{}) error {
 	return validateStruct(val.Elem())
 }
 
+// validateStruct function recursively validates a struct and its fields.
+// It checks if all required fields are present and non-empty.
+// A field is considered required if it does not have the yamlconfig tag "omitempty".
 func validateStruct(val reflect.Value) error {
 	for i := 0; i < val.NumField(); i++ {
 		field := val.Field(i)
 		typ := val.Type().Field(i)
 
-		// Validate the field
-		if isEmpty(field) {
-			return fmt.Errorf("missing config item: %s", typ.Name)
+		// Check for the yamlconfig tag
+		yamlConfigTag := typ.Tag.Get("yamlconfig")
+		isOmitEmpty := yamlConfigTag == "omitempty"
+
+		// If the field is required (no omitempty) and empty, return an error
+		if !isOmitEmpty && isEmpty(field) {
+			return fmt.Errorf("missing required config item: %s", typ.Name)
 		}
 
-		// If the field is a struct (or a pointer to a struct), recursively validate its fields
+		// Recursively validate nested structs
 		if field.Kind() == reflect.Struct {
-			nestedStruct := field
-
-			// Recursively validate the nested struct
-			if err := validateStruct(nestedStruct); err != nil {
+			if err := validateStruct(field); err != nil {
 				return err
 			}
 		}
