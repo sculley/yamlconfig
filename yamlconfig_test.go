@@ -193,4 +193,27 @@ func TestConfig(t *testing.T) {
 		loadConfigErr := yamlconfig.LoadConfig(tempConfigFile.Name(), &cfg)
 		require.Error(t, loadConfigErr)
 	})
+
+	t.Run("Load Config with Bool Field - False", func(t *testing.T) {
+		cfg := TestConfigStruct{}
+		tempConfigFile, tempConfigFileErr := os.CreateTemp("", "config_bool_false.yml")
+		require.NoError(t, tempConfigFileErr)
+		defer os.Remove(tempConfigFile.Name())
+
+		_, writeStringErr := tempConfigFile.WriteString("string: test\nint: 1\nbool: false\nslice:\n  - foo\n  - bar\nunit: 1\nfloat: 1.0\nstruct:\n  string: test")
+		if writeStringErr != nil {
+			t.Fatal(writeStringErr)
+		}
+
+		loadConfigErr := yamlconfig.LoadConfig(tempConfigFile.Name(), &cfg)
+		require.NoError(t, loadConfigErr)
+
+		require.Equal(t, "test", cfg.String)
+		require.Equal(t, 1, cfg.Int)
+		require.Equal(t, false, cfg.Bool)
+		require.Equal(t, []string{"foo", "bar"}, cfg.Slice)
+		require.Equal(t, uint(1), cfg.Unit)
+		require.Equal(t, 1.0, cfg.Float)
+		require.Equal(t, "test", cfg.Struct.String)
+	})
 }

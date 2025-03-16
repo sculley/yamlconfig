@@ -108,7 +108,7 @@ func isEmpty(v reflect.Value) bool {
 	case reflect.Float32, reflect.Float64:
 		return v.Float() == 0
 	case reflect.Bool:
-		return !v.Bool()
+		return false
 	case reflect.Struct:
 		for i := 0; i < v.NumField(); i++ {
 			if !isEmpty(v.Field(i)) {
