@@ -82,8 +82,8 @@ func validateStruct(val reflect.Value) error {
 			return fmt.Errorf("missing required config item: %s", typ.Name)
 		}
 
-		// Recursively validate nested structs
-		if field.Kind() == reflect.Struct {
+		// Recursively validate nested structs (skip if parent has omitempty)
+		if !isOmitEmpty && field.Kind() == reflect.Struct {
 			if err := validateStruct(field); err != nil {
 				return err
 			}

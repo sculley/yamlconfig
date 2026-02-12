@@ -38,6 +38,13 @@ type TestConfigOmitEmpty struct {
 	Slice  []string          `yaml:"slice" yamlconfig:"omitempty"`
 }
 
+type TestConfigOmitEmptyNestedStruct struct {
+	String string `yaml:"string"`
+	Nested struct {
+		Required string `yaml:"string"`
+	} `yaml:"nested" yamlconfig:"omitempty"`
+}
+
 func TestConfig(t *testing.T) {
 	t.Run("Load Config", func(t *testing.T) {
 		cfg := TestConfigStruct{}
@@ -192,6 +199,23 @@ func TestConfig(t *testing.T) {
 
 		loadConfigErr := yamlconfig.LoadConfig(tempConfigFile.Name(), &cfg)
 		require.Error(t, loadConfigErr)
+	})
+
+	t.Run("Load Config With OmitEmpty Nested Struct - Child Fields Not Validated", func(t *testing.T) {
+		cfg := TestConfigOmitEmptyNestedStruct{}
+		tempConfigFile, tempConfigFileErr := os.CreateTemp("", "omit_empty_nested_struct.yml")
+		require.NoError(t, tempConfigFileErr)
+		defer os.Remove(tempConfigFile.Name())
+
+		// nested is present but has missing required field - should succeed because parent has omitempty
+		_, writeStringErr := tempConfigFile.WriteString("string: test\n")
+		require.NoError(t, writeStringErr)
+
+		loadConfigErr := yamlconfig.LoadConfig(tempConfigFile.Name(), &cfg)
+		require.NoError(t, loadConfigErr)
+
+		require.Equal(t, "test", cfg.String)
+		require.Equal(t, "", cfg.Nested.Required)
 	})
 
 	t.Run("Load Config with Bool Field - False", func(t *testing.T) {
