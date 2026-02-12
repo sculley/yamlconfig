@@ -38,6 +38,23 @@ type TestConfigOmitEmpty struct {
 	Slice  []string          `yaml:"slice" yamlconfig:"omitempty"`
 }
 
+type TestConfigOmitEmptyNestedStruct struct {
+	String string `yaml:"string"`
+	Nested struct {
+		Required string `yaml:"string"`
+	} `yaml:"nested" yamlconfig:"omitempty"`
+}
+
+type TestConfigOmitEmptyNestedStructPointer struct {
+	Backend string `yaml:"backend"`
+	S3      *struct {
+		Bucket string `yaml:"bucket"`
+	} `yaml:"s3" yamlconfig:"omitempty"`
+	FileSystem *struct {
+		Path string `yaml:"path"`
+	} `yaml:"file-system" yamlconfig:"omitempty"`
+}
+
 func TestConfig(t *testing.T) {
 	t.Run("Load Config", func(t *testing.T) {
 		cfg := TestConfigStruct{}
@@ -188,6 +205,71 @@ func TestConfig(t *testing.T) {
 		defer os.Remove(tempConfigFile.Name())
 
 		_, writeStringErr := tempConfigFile.WriteString("map:\n  foo: bar\nslice:\n  - item1\n")
+		require.NoError(t, writeStringErr)
+
+		loadConfigErr := yamlconfig.LoadConfig(tempConfigFile.Name(), &cfg)
+		require.Error(t, loadConfigErr)
+	})
+
+	t.Run("Load Config With OmitEmpty Nested Struct - Absent Skips Child Validation", func(t *testing.T) {
+		cfg := TestConfigOmitEmptyNestedStruct{}
+		tempConfigFile, tempConfigFileErr := os.CreateTemp("", "omit_empty_nested_struct.yml")
+		require.NoError(t, tempConfigFileErr)
+		defer os.Remove(tempConfigFile.Name())
+
+		// nested absent - child validation skipped (value struct: empty = absent)
+		_, writeStringErr := tempConfigFile.WriteString("string: test\n")
+		require.NoError(t, writeStringErr)
+
+		loadConfigErr := yamlconfig.LoadConfig(tempConfigFile.Name(), &cfg)
+		require.NoError(t, loadConfigErr)
+
+		require.Equal(t, "test", cfg.String)
+		require.Equal(t, "", cfg.Nested.Required)
+	})
+
+	t.Run("Load Config With OmitEmpty Pointer - Absent Skips Child Validation", func(t *testing.T) {
+		cfg := TestConfigOmitEmptyNestedStructPointer{}
+		tempConfigFile, tempConfigFileErr := os.CreateTemp("", "omit_empty_pointer_absent.yml")
+		require.NoError(t, tempConfigFileErr)
+		defer os.Remove(tempConfigFile.Name())
+
+		_, writeStringErr := tempConfigFile.WriteString("backend: s3\n")
+		require.NoError(t, writeStringErr)
+
+		loadConfigErr := yamlconfig.LoadConfig(tempConfigFile.Name(), &cfg)
+		require.NoError(t, loadConfigErr)
+
+		require.Equal(t, "s3", cfg.Backend)
+		require.Nil(t, cfg.S3)
+		require.Nil(t, cfg.FileSystem)
+	})
+
+	t.Run("Load Config With OmitEmpty Pointer - Present Validates Children", func(t *testing.T) {
+		cfg := TestConfigOmitEmptyNestedStructPointer{}
+		tempConfigFile, tempConfigFileErr := os.CreateTemp("", "omit_empty_pointer_present_valid.yml")
+		require.NoError(t, tempConfigFileErr)
+		defer os.Remove(tempConfigFile.Name())
+
+		_, writeStringErr := tempConfigFile.WriteString("backend: s3\ns3:\n  bucket: my-bucket\n")
+		require.NoError(t, writeStringErr)
+
+		loadConfigErr := yamlconfig.LoadConfig(tempConfigFile.Name(), &cfg)
+		require.NoError(t, loadConfigErr)
+
+		require.Equal(t, "s3", cfg.Backend)
+		require.NotNil(t, cfg.S3)
+		require.Equal(t, "my-bucket", cfg.S3.Bucket)
+	})
+
+	t.Run("Load Config With OmitEmpty Pointer - Present With Missing Required Child Fails", func(t *testing.T) {
+		cfg := TestConfigOmitEmptyNestedStructPointer{}
+		tempConfigFile, tempConfigFileErr := os.CreateTemp("", "omit_empty_pointer_present_invalid.yml")
+		require.NoError(t, tempConfigFileErr)
+		defer os.Remove(tempConfigFile.Name())
+
+		// s3 key present but bucket missing
+		_, writeStringErr := tempConfigFile.WriteString("backend: s3\ns3: {}\n")
 		require.NoError(t, writeStringErr)
 
 		loadConfigErr := yamlconfig.LoadConfig(tempConfigFile.Name(), &cfg)

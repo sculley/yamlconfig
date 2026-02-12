@@ -68,6 +68,12 @@ func validateConfig(config interface{}) error {
 // validateStruct function recursively validates a struct and its fields.
 // It checks if all required fields are present and non-empty.
 // A field is considered required if it does not have the yamlconfig tag "omitempty".
+//
+// Optional nested structs (omitempty): Validation of child fields is skipped only when
+// the parent section is absent from the config. When the parent is present, its
+// required children are validated. Use a pointer to struct (e.g. *struct{...}) for
+// omitempty nested sections so the decoder can distinguish absent (nil) from present
+// (non-nil); with value structs, absent and empty are indistinguishable.
 func validateStruct(val reflect.Value) error {
 	for i := 0; i < val.NumField(); i++ {
 		field := val.Field(i)
@@ -82,9 +88,11 @@ func validateStruct(val reflect.Value) error {
 			return fmt.Errorf("missing required config item: %s", typ.Name)
 		}
 
-		// Recursively validate nested structs
-		if field.Kind() == reflect.Struct {
-			if err := validateStruct(field); err != nil {
+		// Recursively validate nested structs when present. Skip only when the struct
+		// is absent: for omitempty pointers, nil means absent; for value structs,
+		// empty means we can't distinguish absent from present, so we skip.
+		if nested := getNestedStruct(field); nested.IsValid() && isStructPresent(field) {
+			if err := validateStruct(nested); err != nil {
 				return err
 			}
 		}
@@ -93,10 +101,37 @@ func validateStruct(val reflect.Value) error {
 	return nil
 }
 
+// getNestedStruct returns the struct to validate for a field that may be a struct
+// or a pointer to struct. Returns zero Value if the field is not a nested struct.
+func getNestedStruct(field reflect.Value) reflect.Value {
+	switch field.Kind() {
+	case reflect.Struct:
+		return field
+	case reflect.Ptr:
+		if !field.IsNil() && field.Elem().Kind() == reflect.Struct {
+			return field.Elem()
+		}
+	}
+	return reflect.Value{}
+}
+
+// isStructPresent returns true if a struct/ptr-to-struct field is present in the
+// config. For pointers: non-nil means the key was in YAML. For value structs:
+// non-empty means at least one field was set (we cannot distinguish absent from
+// present-but-empty for value structs).
+func isStructPresent(field reflect.Value) bool {
+	if field.Kind() == reflect.Ptr {
+		return !field.IsNil()
+	}
+	return !isEmpty(field)
+}
+
 // isEmpty function checks if a value is empty. It is used to validate the
 // configuration values.
 func isEmpty(v reflect.Value) bool {
 	switch v.Kind() { //nolint:exhaustive // We don't need to handle all types
+	case reflect.Ptr:
+		return v.IsNil() || isEmpty(v.Elem())
 	case reflect.String:
 		return v.String() == ""
 	case reflect.Slice, reflect.Map, reflect.Array:
@@ -115,6 +150,7 @@ func isEmpty(v reflect.Value) bool {
 				return false
 			}
 		}
+		return true
 	}
 
 	return false

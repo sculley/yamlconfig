@@ -55,6 +55,24 @@ type Config struct {
 
 In this example, Env, Volumes, and Ports fields are optional. If your YAML file omits these fields or leaves them empty, YAMLConfig will not return an error during validation.
 
+#### Optional Nested Structs (Mutually Exclusive Sections)
+
+For optional nested structs where you need "if present, validate children" (e.g. backend-specific config), use a **pointer to struct** with `omitempty`. When the section is absent, child validation is skipped. When present, required children are validated.
+
+```go
+type Config struct {
+    Backend   string `yaml:"backend"`
+    S3        *struct { Bucket string `yaml:"bucket"` }  `yaml:"s3" yamlconfig:"omitempty"`
+    FileSystem *struct { Path string `yaml:"path"` }     `yaml:"file-system" yamlconfig:"omitempty"`
+}
+```
+
+- `backend: s3` with `s3:` absent → valid (no S3 validation)
+- `backend: s3` with `s3:` present but `bucket` missing → validation error
+- `backend: s3` with `s3: { bucket: "my-bucket" }` → valid
+
+With value structs (not pointers), absent and present-but-empty are indistinguishable, so child validation is skipped when the struct is empty.
+
 ### Creating a Configuration File
 
 Define your configuration in a YAML file as follows:
